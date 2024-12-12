@@ -138,16 +138,17 @@
     // Endpoint: GET https://api.hgbrasil.com/finance/taxes?key=acb640d4
 
     async function obterCDI() {
-        const response = await fetch("https://api.hgbrasil.com/finance/taxes?key=acb640d4");
-        if (!response.ok) {
-            throw new Error("Falha ao obter taxa CDI");
-        }
-        const data = await response.json();
-        if (!data.results || !data.results[0] || typeof data.results[0].cdi === 'undefined') {
-            throw new Error("Dados de CDI não encontrados");
-        }
-        return parseFloat(data.results[0].cdi);
+    try {
+        const response = await fetch("https://api.hgbrasil.com/finance/taxes?key=553b6033", {
+            method: "GET",
+            mode: "no-cors" // Define o modo no-cors
+        });
+        console.log("Resposta sem acesso ao corpo:", response);
+        // Não será possível acessar o conteúdo do JSON diretamente
+    } catch (error) {
+        console.error("Erro ao buscar CDI:", error);
     }
+}
 
     let taxaCDIAtual = null;
 
