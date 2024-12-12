@@ -1,5 +1,10 @@
-<meta charset="UTF-8"> <meta content="width=device-width, initial-scale=1.0" name="viewport"> Calculadora CDB/CDI Interativa
-<style><!--
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Calculadora CDB/CDI Interativa</title>
+<style>
     body {
         font-family: Arial, sans-serif;
         background: #f5f5f5;
@@ -96,43 +101,81 @@
             font-size: 14px;
         }
     }
---></style>
+</style>
+</head>
+<body>
 <div class="container">
-<h1>Calculadora CDB/CDI</h1>
-<p style="text-align: center;">Calcule quanto seu investimento pode render com base na taxa CDI atual. Preencha os campos, e veja o resultado em valores, gráfico e tabela.</p>
-<div class="infoCDI" id="infoCDI">Obtendo a taxa CDI atual...</div>
-<label for="valor">Valor Investido (R$):</label> <input type="number" step="0.01" id="valor" placeholder="Ex: 10000"> <label for="porcentagemCdi">% do CDI (Ex: 100 para 100% do CDI):</label> <input type="number" step="0.01" id="porcentagemCdi" placeholder="Ex: 100"> <label for="dias">Prazo (em dias corridos):</label> <input type="number" id="dias" placeholder="Ex: 30"> <button id="calcular">Calcular</button>
-<div class="result" id="result"></div>
-<div class="chart-container"><canvas id="myChart"></canvas></div>
-<div id="tableContainer"></div>
+    <h1>Calculadora CDB/CDI</h1>
+    <p style="text-align:center;">
+        Calcule quanto seu investimento pode render com base na taxa CDI atual. 
+        Preencha os campos, e veja o resultado em valores, gráfico e tabela.
+    </p>
+    <div class="infoCDI" id="infoCDI">Obtendo a taxa CDI atual...</div>
+    <label for="valor">Valor Investido (R$):</label>
+    <input type="number" step="0.01" id="valor" placeholder="Ex: 10000" />
+
+    <label for="porcentagemCdi">% do CDI (Ex: 100 para 100% do CDI):</label>
+    <input type="number" step="0.01" id="porcentagemCdi" placeholder="Ex: 100" />
+
+    <label for="dias">Prazo (em dias corridos):</label>
+    <input type="number" id="dias" placeholder="Ex: 30" />
+
+    <button id="calcular">Calcular</button>
+
+    <div class="result" id="result"></div>
+
+    <div class="chart-container">
+        <canvas id="myChart"></canvas>
+    </div>
+
+    <div id="tableContainer"></div>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <script>
-    const FALLBACK_CDI = 13.65; // CDI padrão em caso de falha
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Obter a taxa CDI da API da HGBrasil
+    // Documentação: https://console.hgbrasil.com/documentation/finance#obter-somente-taxas-cdi-selic
+    // Chave: 1c3c6874
+    // Endpoint: GET https://api.hgbrasil.com/finance/taxes?key=1c3c6874
+    // Exemplo de retorno:
+    // {
+    //  "results":[{"date":"2020-11-18","cdi":2.15,"selic":2.00,"daily_factor":0.9991179687,"selic_daily":0.0000822981}],
+    //  "valid_key":true,"execution_time":0.007,"from_cache":false
+    // }
 
     async function obterCDI() {
-        try {
-            const response = await fetch("https://api.hgbrasil.com/finance/taxes?key=553b6033");
-            const data = await response.json();
-            console.log("Resposta da API:", data);
-
-            if (data.results && Array.isArray(data.results) && data.results[0].cdi) {
-                return parseFloat(data.results[0].cdi);
-            } else {
-                throw new Error("Estrutura de resposta inesperada. Aplicando fallback.");
-            }
-        } catch (error) {
-            console.error("Erro ao obter a taxa CDI:", error.message);
-            return FALLBACK_CDI;
+        const response = await fetch("https://api.hgbrasil.com/finance/taxes?key=1c3c6874");
+        if(!response.ok) {
+            throw new Error("Falha ao obter taxa CDI");
         }
+        const data = await response.json();
+        if(!data.results || !data.results[0] || typeof data.results[0].cdi === 'undefined') {
+            throw new Error("Dados de CDI não encontrados");
+        }
+        return parseFloat(data.results[0].cdi);
     }
 
+    let taxaCDIAtual = null;
+
     function getIRPercent(dias) {
+        // Tabela de IR sobre renda fixa:
+        // Até 180 dias: 22,5%
+        // De 181 a 360 dias: 20%
+        // De 361 a 720 dias: 17,5%
+        // Acima de 720 dias: 15%
         if (dias <= 180) return 0.225;
         if (dias <= 360) return 0.20;
         if (dias <= 720) return 0.175;
         return 0.15;
     }
 
+    // Cálculo simplificado do rendimento:
+    // Considerando a taxa CDI anual. 
+    // Supondo ~252 dias úteis no ano, mas aqui simplificaremos usando também para dias corridos.
+    // Valor Final = Valor Investido * (1 + taxaDiaria)^dias
+    // taxaDiaria = ((CDI% * (PorcentagemCDI/100)) / 100) / 252
+    //
+    // Este é um cálculo aproximado e didático.
     function calcularRendimentoDiario(valor, pctCdi, dias, cdi) {
         const taxaAnualEfetiva = (cdi * (pctCdi / 100)) / 100;
         const taxaDiaria = taxaAnualEfetiva / 252;
@@ -146,7 +189,7 @@
         return valores;
     }
 
-    document.getElementById('calcular').addEventListener('click', async function() {
+    document.getElementById('calcular').addEventListener('click', function() {
         const valor = parseFloat(document.getElementById('valor').value);
         const pctCdi = parseFloat(document.getElementById('porcentagemCdi').value);
         const dias = parseInt(document.getElementById('dias').value);
@@ -158,18 +201,23 @@
             return;
         }
 
-        const cdi = await obterCDI();
-        const valoresDiarios = calcularRendimentoDiario(valor, pctCdi, dias, cdi);
+        if (taxaCDIAtual === null) {
+            resultDiv.textContent = "Aguarde obter a taxa CDI.";
+            return;
+        }
+
+        const valoresDiarios = calcularRendimentoDiario(valor, pctCdi, dias, taxaCDIAtual);
         const valorFinalBruto = valoresDiarios[valoresDiarios.length - 1];
         const rendimentoBruto = valorFinalBruto - valor;
 
+        // Cálculo do IR
         const irPercent = getIRPercent(dias);
         const ir = rendimentoBruto * irPercent;
         const valorFinalLiquido = valorFinalBruto - ir;
 
         resultDiv.innerHTML = `
             <strong>Resultado após ${dias} dias:</strong><br><br>
-            CDI Atual: ${cdi.toFixed(2)}% a.a.<br>
+            CDI Atual: ${taxaCDIAtual.toFixed(2)}% a.a.<br>
             Valor Investido: R$ ${valor.toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2})}<br>
             Valor Final Bruto (antes do IR): R$ ${valorFinalBruto.toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2})}<br>
             Rendimento Bruto: R$ ${rendimentoBruto.toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2})}<br>
@@ -177,9 +225,54 @@
             Valor Final Líquido (após IR): R$ ${valorFinalLiquido.toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2})}
         `;
 
+        // Criar gráfico com Chart.js
         criarGrafico(valoresDiarios, dias);
-        criarTabela(valoresDiarios, valor, dias);
+
+        // Criar tabela com dados diários (reinvestindo o valor, pois já é composto diariamente)
+        // Vamos mostrar: Dia, Valor Bruto no dia, IR se resgatar no dia, Valor Líquido se resgatar no dia
+        let tableHTML = `
+            <h2>Tabela de Evolução Diária (Reinvestimento Diário)</h2>
+            <table>
+            <tr>
+                <th>Dia</th>
+                <th>Valor Bruto (R$)</th>
+                <th>Imposto (%)</th>
+                <th>IR (R$)</th>
+                <th>Valor Líquido (R$)</th>
+            </tr>`;
+        
+        for (let d = 0; d < dias; d++) {
+            let vBruto = valoresDiarios[d];
+            let rendimentoBrutoDia = vBruto - valor;
+            let irPercentDia = getIRPercent(d+1);
+            let irDia = rendimentoBrutoDia * irPercentDia;
+            let vLiquidoDia = vBruto - irDia;
+
+            tableHTML += `
+            <tr>
+                <td>${d+1}</td>
+                <td>${vBruto.toLocaleString('pt-BR',{minimumFractionDigits:2})}</td>
+                <td>${(irPercentDia*100).toFixed(1)}%</td>
+                <td>${irDia.toLocaleString('pt-BR',{minimumFractionDigits:2})}</td>
+                <td>${vLiquidoDia.toLocaleString('pt-BR',{minimumFractionDigits:2})}</td>
+            </tr>
+            `;
+        }
+        tableHTML += `</table>`;
+
+        tableContainer.innerHTML = tableHTML;
     });
+
+    async function iniciar() {
+        try {
+            taxaCDIAtual = await obterCDI();
+            const infoCDI = document.getElementById('infoCDI');
+            infoCDI.textContent = "Taxa CDI atual: " + taxaCDIAtual.toFixed(2) + "% a.a.";
+        } catch (e) {
+            const infoCDI = document.getElementById('infoCDI');
+            infoCDI.textContent = "Não foi possível obter a taxa CDI. Verifique sua conexão ou chave de API.";
+        }
+    }
 
     function criarGrafico(valoresDiarios, dias) {
         const ctx = document.getElementById('myChart').getContext('2d');
@@ -223,36 +316,7 @@
         });
     }
 
-    function criarTabela(valoresDiarios, valorInicial, dias) {
-        let tableHTML = `
-            <h2>Tabela de Evolução Diária</h2>
-            <table>
-            <tr>
-                <th>Dia</th>
-                <th>Valor Bruto (R$)</th>
-                <th>Rendimento Diário (R$)</th>
-            </tr>`;
-
-        for (let d = 0; d < dias; d++) {
-            let vBruto = valoresDiarios[d];
-            let rendimentoDiario = d === 0 ? 0 : valoresDiarios[d] - valoresDiarios[d - 1];
-
-            tableHTML += `
-            <tr>
-                <td>${d+1}</td>
-                <td>${vBruto.toLocaleString('pt-BR',{minimumFractionDigits:2})}</td>
-                <td>${rendimentoDiario.toLocaleString('pt-BR',{minimumFractionDigits:2})}</td>
-            </tr>`;
-        }
-        tableHTML += `</table>`;
-
-        document.getElementById('tableContainer').innerHTML = tableHTML;
-    }
-
-    async function iniciar() {
-        const cdi = await obterCDI();
-        document.getElementById('infoCDI').textContent = `Taxa CDI atual: ${cdi.toFixed(2)}% a.a.`;
-    }
-
     iniciar();
 </script>
+</body>
+</html>
