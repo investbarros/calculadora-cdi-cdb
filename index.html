@@ -1,0 +1,258 @@
+<meta charset="UTF-8"> <meta content="width=device-width, initial-scale=1.0" name="viewport"> Calculadora CDB/CDI Interativa
+<style><!--
+    body {
+        font-family: Arial, sans-serif;
+        background: #f5f5f5;
+        margin: 0;
+        padding: 0;
+    }
+    .container {
+        max-width: 800px;
+        margin: 40px auto;
+        background: #fff;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1, h2, h3 {
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    h2 {
+        margin-top: 40px;
+    }
+    label {
+        display: block;
+        margin: 15px 0 5px 0;
+        font-weight: bold;
+    }
+    input {
+        width: 100%;
+        padding: 10px;
+        margin-bottom: 10px;
+        box-sizing: border-box;
+    }
+    button {
+        width: 100%;
+        background: #4CAF50;
+        color: #fff;
+        padding: 15px;
+        border: none;
+        font-size: 16px;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #45a049;
+    }
+    .result, .infoCDI {
+        text-align: center;
+        margin-top: 20px;
+        font-size: 18px;
+    }
+    .infoCDI {
+        font-size: 16px;
+        color: #555;
+        margin-bottom: 20px;
+    }
+    .chart-container {
+        width: 100%;
+        margin-top: 40px;
+    }
+    canvas {
+        max-width: 100%;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 40px;
+        font-size: 14px;
+    }
+
+    table, th, td {
+        border: 1px solid #ddd;
+    }
+
+    th, td {
+        text-align: right;
+        padding: 8px;
+    }
+
+    th {
+        background: #f0f0f0;
+    }
+
+    td:first-child, th:first-child {
+        text-align: left;
+    }
+
+    @media (max-width: 500px) {
+        .container {
+            margin: 20px;
+            padding: 15px;
+        }
+        button {
+            padding: 12px;
+            font-size: 14px;
+        }
+    }
+--></style>
+<div class="container">
+<h1>Calculadora CDB/CDI</h1>
+<p style="text-align: center;">Calcule quanto seu investimento pode render com base na taxa CDI atual. Preencha os campos, e veja o resultado em valores, gráfico e tabela.</p>
+<div class="infoCDI" id="infoCDI">Obtendo a taxa CDI atual...</div>
+<label for="valor">Valor Investido (R$):</label> <input type="number" step="0.01" id="valor" placeholder="Ex: 10000"> <label for="porcentagemCdi">% do CDI (Ex: 100 para 100% do CDI):</label> <input type="number" step="0.01" id="porcentagemCdi" placeholder="Ex: 100"> <label for="dias">Prazo (em dias corridos):</label> <input type="number" id="dias" placeholder="Ex: 30"> <button id="calcular">Calcular</button>
+<div class="result" id="result"></div>
+<div class="chart-container"><canvas id="myChart"></canvas></div>
+<div id="tableContainer"></div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <script>
+    const FALLBACK_CDI = 13.65; // CDI padrão em caso de falha
+
+    async function obterCDI() {
+        try {
+            const response = await fetch("https://api.hgbrasil.com/finance/taxes?key=1c3c6874");
+            const data = await response.json();
+            console.log("Resposta da API:", data);
+
+            if (data.results && Array.isArray(data.results) && data.results[0].cdi) {
+                return parseFloat(data.results[0].cdi);
+            } else {
+                throw new Error("Estrutura de resposta inesperada. Aplicando fallback.");
+            }
+        } catch (error) {
+            console.error("Erro ao obter a taxa CDI:", error.message);
+            return FALLBACK_CDI;
+        }
+    }
+
+    function getIRPercent(dias) {
+        if (dias <= 180) return 0.225;
+        if (dias <= 360) return 0.20;
+        if (dias <= 720) return 0.175;
+        return 0.15;
+    }
+
+    function calcularRendimentoDiario(valor, pctCdi, dias, cdi) {
+        const taxaAnualEfetiva = (cdi * (pctCdi / 100)) / 100;
+        const taxaDiaria = taxaAnualEfetiva / 252;
+
+        let valores = [];
+        let valorAtual = valor;
+        for (let d = 1; d <= dias; d++) {
+            valorAtual = valorAtual * (1 + taxaDiaria);
+            valores.push(valorAtual);
+        }
+        return valores;
+    }
+
+    document.getElementById('calcular').addEventListener('click', async function() {
+        const valor = parseFloat(document.getElementById('valor').value);
+        const pctCdi = parseFloat(document.getElementById('porcentagemCdi').value);
+        const dias = parseInt(document.getElementById('dias').value);
+        const resultDiv = document.getElementById('result');
+        const tableContainer = document.getElementById('tableContainer');
+
+        if(isNaN(valor) || isNaN(pctCdi) || isNaN(dias) || valor <= 0 || pctCdi <= 0 || dias <= 0) {
+            resultDiv.textContent = "Por favor, preencha todos os campos corretamente com valores positivos.";
+            return;
+        }
+
+        const cdi = await obterCDI();
+        const valoresDiarios = calcularRendimentoDiario(valor, pctCdi, dias, cdi);
+        const valorFinalBruto = valoresDiarios[valoresDiarios.length - 1];
+        const rendimentoBruto = valorFinalBruto - valor;
+
+        const irPercent = getIRPercent(dias);
+        const ir = rendimentoBruto * irPercent;
+        const valorFinalLiquido = valorFinalBruto - ir;
+
+        resultDiv.innerHTML = `
+            <strong>Resultado após ${dias} dias:</strong><br><br>
+            CDI Atual: ${cdi.toFixed(2)}% a.a.<br>
+            Valor Investido: R$ ${valor.toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2})}<br>
+            Valor Final Bruto (antes do IR): R$ ${valorFinalBruto.toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2})}<br>
+            Rendimento Bruto: R$ ${rendimentoBruto.toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2})}<br>
+            IR (${(irPercent*100).toFixed(1)}% sobre o lucro): R$ ${ir.toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2})}<br>
+            Valor Final Líquido (após IR): R$ ${valorFinalLiquido.toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2})}
+        `;
+
+        criarGrafico(valoresDiarios, dias);
+        criarTabela(valoresDiarios, valor, dias);
+    });
+
+    function criarGrafico(valoresDiarios, dias) {
+        const ctx = document.getElementById('myChart').getContext('2d');
+        if (window.myChart) {
+            window.myChart.destroy();
+        }
+        window.myChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: Array.from({length: dias}, (_, i) => i+1),
+                datasets: [{
+                    label: 'Valor (R$)',
+                    data: valoresDiarios.map(v => v.toFixed(2)),
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    fill: false,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                responsive: true,
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Dia'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Valor do Investimento (R$)'
+                        },
+                        beginAtZero: false
+                    }
+                }
+            }
+        });
+    }
+
+    function criarTabela(valoresDiarios, valorInicial, dias) {
+        let tableHTML = `
+            <h2>Tabela de Evolução Diária</h2>
+            <table>
+            <tr>
+                <th>Dia</th>
+                <th>Valor Bruto (R$)</th>
+                <th>Rendimento Diário (R$)</th>
+            </tr>`;
+
+        for (let d = 0; d < dias; d++) {
+            let vBruto = valoresDiarios[d];
+            let rendimentoDiario = d === 0 ? 0 : valoresDiarios[d] - valoresDiarios[d - 1];
+
+            tableHTML += `
+            <tr>
+                <td>${d+1}</td>
+                <td>${vBruto.toLocaleString('pt-BR',{minimumFractionDigits:2})}</td>
+                <td>${rendimentoDiario.toLocaleString('pt-BR',{minimumFractionDigits:2})}</td>
+            </tr>`;
+        }
+        tableHTML += `</table>`;
+
+        document.getElementById('tableContainer').innerHTML = tableHTML;
+    }
+
+    async function iniciar() {
+        const cdi = await obterCDI();
+        document.getElementById('infoCDI').textContent = `Taxa CDI atual: ${cdi.toFixed(2)}% a.a.`;
+    }
+
+    iniciar();
+</script>
