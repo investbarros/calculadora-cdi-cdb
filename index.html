@@ -134,22 +134,16 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     // Obter a taxa CDI da API da HGBrasil
-    // Documentação: https://console.hgbrasil.com/documentation/finance#obter-somente-taxas-cdi-selic
-    // Chave: 1c3c6874
-    // Endpoint: GET https://api.hgbrasil.com/finance/taxes?key=1c3c6874
-    // Exemplo de retorno:
-    // {
-    //  "results":[{"date":"2020-11-18","cdi":2.15,"selic":2.00,"daily_factor":0.9991179687,"selic_daily":0.0000822981}],
-    //  "valid_key":true,"execution_time":0.007,"from_cache":false
-    // }
+    // Chave: 553b6033
+    // Endpoint: GET https://api.hgbrasil.com/finance/taxes?key=553b6033
 
     async function obterCDI() {
-        const response = await fetch("https://api.hgbrasil.com/finance/taxes?key=1c3c6874");
-        if(!response.ok) {
+        const response = await fetch("https://api.hgbrasil.com/finance/taxes?key=553b6033");
+        if (!response.ok) {
             throw new Error("Falha ao obter taxa CDI");
         }
         const data = await response.json();
-        if(!data.results || !data.results[0] || typeof data.results[0].cdi === 'undefined') {
+        if (!data.results || !data.results[0] || typeof data.results[0].cdi === 'undefined') {
             throw new Error("Dados de CDI não encontrados");
         }
         return parseFloat(data.results[0].cdi);
@@ -158,24 +152,12 @@
     let taxaCDIAtual = null;
 
     function getIRPercent(dias) {
-        // Tabela de IR sobre renda fixa:
-        // Até 180 dias: 22,5%
-        // De 181 a 360 dias: 20%
-        // De 361 a 720 dias: 17,5%
-        // Acima de 720 dias: 15%
         if (dias <= 180) return 0.225;
         if (dias <= 360) return 0.20;
         if (dias <= 720) return 0.175;
         return 0.15;
     }
 
-    // Cálculo simplificado do rendimento:
-    // Considerando a taxa CDI anual. 
-    // Supondo ~252 dias úteis no ano, mas aqui simplificaremos usando também para dias corridos.
-    // Valor Final = Valor Investido * (1 + taxaDiaria)^dias
-    // taxaDiaria = ((CDI% * (PorcentagemCDI/100)) / 100) / 252
-    //
-    // Este é um cálculo aproximado e didático.
     function calcularRendimentoDiario(valor, pctCdi, dias, cdi) {
         const taxaAnualEfetiva = (cdi * (pctCdi / 100)) / 100;
         const taxaDiaria = taxaAnualEfetiva / 252;
@@ -196,7 +178,7 @@
         const resultDiv = document.getElementById('result');
         const tableContainer = document.getElementById('tableContainer');
 
-        if(isNaN(valor) || isNaN(pctCdi) || isNaN(dias) || valor <= 0 || pctCdi <= 0 || dias <= 0) {
+        if (isNaN(valor) || isNaN(pctCdi) || isNaN(dias) || valor <= 0 || pctCdi <= 0 || dias <= 0) {
             resultDiv.textContent = "Por favor, preencha todos os campos corretamente com valores positivos.";
             return;
         }
@@ -210,7 +192,6 @@
         const valorFinalBruto = valoresDiarios[valoresDiarios.length - 1];
         const rendimentoBruto = valorFinalBruto - valor;
 
-        // Cálculo do IR
         const irPercent = getIRPercent(dias);
         const ir = rendimentoBruto * irPercent;
         const valorFinalLiquido = valorFinalBruto - ir;
@@ -225,11 +206,8 @@
             Valor Final Líquido (após IR): R$ ${valorFinalLiquido.toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2})}
         `;
 
-        // Criar gráfico com Chart.js
         criarGrafico(valoresDiarios, dias);
 
-        // Criar tabela com dados diários (reinvestindo o valor, pois já é composto diariamente)
-        // Vamos mostrar: Dia, Valor Bruto no dia, IR se resgatar no dia, Valor Líquido se resgatar no dia
         let tableHTML = `
             <h2>Tabela de Evolução Diária (Reinvestimento Diário)</h2>
             <table>
@@ -255,8 +233,7 @@
                 <td>${(irPercentDia*100).toFixed(1)}%</td>
                 <td>${irDia.toLocaleString('pt-BR',{minimumFractionDigits:2})}</td>
                 <td>${vLiquidoDia.toLocaleString('pt-BR',{minimumFractionDigits:2})}</td>
-            </tr>
-            `;
+            </tr>`;
         }
         tableHTML += `</table>`;
 
